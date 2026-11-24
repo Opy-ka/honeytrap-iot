@@ -1,0 +1,540 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>HoneyTrap IoT - Threat Intelligence &amp; Honeypot Operations</title>
+<!-- Google Fonts: Space Grotesk & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "secondary-fixed-dim": "#ffb2ba",
+            "surface-container-low": "#f3f3f3",
+            "surface-variant": "#e2e2e2",
+            "on-tertiary-fixed": "#002022",
+            "primary-fixed-dim": "#00e55b",
+            "on-secondary-container": "#fffbff",
+            "tertiary-container": "#55f2ff",
+            "error": "#ba1a1a",
+            "on-error": "#ffffff",
+            "tertiary-fixed": "#7df4ff",
+            "background": "#f9f9f9",
+            "inverse-primary": "#00e55b",
+            "on-tertiary": "#ffffff",
+            "on-surface": "#1b1b1b",
+            "on-tertiary-fixed-variant": "#004f54",
+            "inverse-on-surface": "#f1f1f1",
+            "surface-container-highest": "#e2e2e2",
+            "secondary-container": "#e31754",
+            "on-tertiary-container": "#006c73",
+            "primary-fixed": "#6bff83",
+            "surface-dim": "#dadada",
+            "on-primary-fixed-variant": "#00531b",
+            "surface-container-high": "#e8e8e8",
+            "tertiary-fixed-dim": "#00dbe9",
+            "on-secondary-fixed": "#400011",
+            "on-background": "#1b1b1b",
+            "error-container": "#ffdad6",
+            "surface-bright": "#f9f9f9",
+            "outline": "#6b7c68",
+            "primary": "#006e27",
+            "on-secondary": "#ffffff",
+            "on-primary": "#ffffff",
+            "on-secondary-fixed-variant": "#910030",
+            "surface-container-lowest": "#ffffff",
+            "primary-container": "#00ff66",
+            "surface": "#f9f9f9",
+            "tertiary": "#006970",
+            "on-primary-fixed": "#002107",
+            "on-primary-container": "#007128",
+            "inverse-surface": "#303030",
+            "on-error-container": "#93000a",
+            "secondary": "#b90040",
+            "surface-container": "#eeeeee",
+            "outline-variant": "#b9ccb5",
+            "on-surface-variant": "#3b4b3a",
+            "surface-tint": "#006e27",
+            "secondary-fixed": "#ffd9dc"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-md": "1rem",
+            "space-lg": "1.5rem",
+            "space-sm": "0.5rem",
+            "margin": "2rem",
+            "margin-sm": "1rem",
+            "gutter": "1.5rem",
+            "gutter-sm": "1rem",
+            "space-xs": "0.25rem",
+            "space-xl": "2.5rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Space Grotesk"],
+            "display-lg-mobile": ["Space Grotesk"],
+            "code-sm": ["JetBrains Mono"],
+            "title-md": ["Space Grotesk"],
+            "headline-lg-mobile": ["Space Grotesk"],
+            "code-md": ["JetBrains Mono"],
+            "body-lg": ["Space Grotesk"],
+            "label-md": ["JetBrains Mono"],
+            "display-lg": ["Space Grotesk"],
+            "headline-md": ["Space Grotesk"],
+            "label-sm": ["JetBrains Mono"],
+            "code-lg": ["JetBrains Mono"],
+            "body-md": ["Space Grotesk"]
+          },
+          "fontSize": {
+            "headline-lg": ["32px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "display-lg-mobile": ["32px", { "lineHeight": "36px", "letterSpacing": "-0.03em", "fontWeight": "700" }],
+            "code-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "title-md": ["18px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "700" }],
+            "headline-lg-mobile": ["24px", { "lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "code-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "500" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }],
+            "display-lg": ["48px", { "lineHeight": "52px", "letterSpacing": "-0.04em", "fontWeight": "700" }],
+            "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "label-sm": ["10px", { "lineHeight": "12px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+            "code-lg": ["15px", { "lineHeight": "22px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "500" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Neobrutalist custom micro grid texture */
+    .cyber-grid {
+      background-color: #f4f0ea;
+      background-image: 
+        linear-gradient(to right, rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #00ff66;
+      border: 1px solid #000000;
+    }
+    @keyframes cursor-blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .blinking-cursor {
+      animation: cursor-blink 0.8s infinite;
+    }
+  </style>
+</head>
+<body class="cyber-grid text-on-surface antialiased min-h-screen flex flex-col font-body-md selection:bg-primary-container selection:text-black">
+<!-- ================= TOP NAV BAR COMPONENT (From Shared Components JSON) ================= -->
+<header class="w-full px-space-lg py-space-sm flex items-center justify-between bg-surface-container-lowest border-b-4 border-on-surface shadow-[0_4px_0_0_#000000] sticky top-0 z-50">
+<div class="flex items-center gap-space-md">
+<!-- Cyber Radar Logo Badge -->
+<div class="w-10 h-10 bg-primary-container border-2 border-on-surface flex items-center justify-center shadow-[2px_2px_0_0_#000000]">
+<span class="material-symbols-outlined text-black font-black" data-icon="radar">radar</span>
+</div>
+<div>
+<span class="text-headline-md font-headline-md tracking-tight text-on-surface font-bold uppercase">HoneyTrap IoT</span>
+<span class="hidden md:inline-block ml-2 text-label-sm font-label-sm bg-surface-container-high px-2 py-0.5 border border-on-surface text-on-surface">SUB-NET MONITOR // ACTIVE LISTENER MODE</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="hidden xl:flex items-center gap-space-sm">
+<a class="border-b-4 border-primary text-primary font-bold px-space-sm py-space-xs font-headline-md text-body-md hover:bg-primary-container hover:text-on-primary-container transition-all" href="#">Live Telemetry</a>
+
+<a class="text-on-surface-variant hover:text-on-surface font-medium px-space-sm py-space-xs font-headline-md text-body-md hover:bg-primary-container hover:text-on-primary-container transition-all" href="#">Forensics</a>
+
+
+</nav>
+<!-- Header Actions & Profile -->
+<div class="flex items-center gap-space-sm">
+
+<button class="hidden sm:flex items-center gap-1 bg-surface-container text-on-surface font-bold font-headline-md text-body-md px-3 py-1.5 border-2 border-on-surface shadow-[3px_3px_0_0_#000000] hover:bg-error-container hover:text-on-error-container active:translate-x-1 active:translate-y-1 active:shadow-none transition-all duration-75">
+        Pause Ingestion
+      </button>
+<!-- Icon Actions -->
+<div class="flex items-center border-2 border-on-surface bg-surface-container-low shadow-[2px_2px_0_0_#000000]">
+<button class="p-1.5 hover:bg-primary-container text-on-surface transition-colors" title="Alerts">
+<span class="material-symbols-outlined text-xl" data-icon="notifications_active">notifications_active</span>
+</button>
+<button class="p-1.5 border-l-2 border-on-surface hover:bg-primary-container text-on-surface transition-colors" title="Settings Tuning">
+<span class="material-symbols-outlined text-xl" data-icon="tune">tune</span>
+</button>
+<button class="p-1.5 border-l-2 border-on-surface hover:bg-primary-container text-on-surface transition-colors" title="Live Terminal Shell">
+<span class="material-symbols-outlined text-xl" data-icon="terminal">terminal</span>
+</button>
+</div>
+<!-- Avatar with Data-Alt requirement -->
+<div class="relative w-9 h-9 border-2 border-on-surface overflow-hidden shadow-[2px_2px_0_0_#000000]">
+<img class="w-full h-full object-cover" data-alt="A portrait of a senior cybersecurity SOC analyst looking focused in front of glowing multi-screen terminal monitors in a high-tech security operations center. The room is styled with bold neon highlights in cyber green and cyan, contrasting with stark deep charcoal tones under modern industrial LED illumination." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBp1qSgtyebWst8zu04tOX_uWF4E6GCMLbBXioyX15BoJDYZd1awtRQcxKZH4AIJ2JElvEyUSUbzZ6OpsfyAmnezS9Eei1R07KpywFQDUSr9ra3XP3Dyz35sLm-WPPRTPBiUOxs-5qmSJjQie1olgboT6GFY0YI5Q6ri_nJAszYoBlWE486VpReHVF_URTPhnjMXqcO_q0o2y5ndpVJLU6-q7G4574crPsdk_E1QKyG1hd30LAOymxPZA">
+</div>
+</div>
+</header>
+<!-- ================= MAIN LAYOUT WITH SIDE NAV + DASHBOARD CANVAS ================= -->
+<div class="flex flex-1 w-full overflow-hidden">
+<!-- SIDE NAV BAR COMPONENT (From Shared Components JSON) -->
+<aside class="hidden lg:flex flex-col justify-between w-64 bg-surface-container-low border-r-4 border-on-surface shadow-[4px_0_0_0_#000000] shrink-0 p-space-md z-40">
+<div class="flex flex-col gap-space-md">
+<!-- Sentinel Node Avatar Header -->
+<div class="p-space-sm bg-surface-container-lowest border-2 border-on-surface shadow-[3px_3px_0_0_#000000] flex items-center gap-space-sm">
+<div class="w-10 h-10 border-2 border-on-surface bg-primary-container flex items-center justify-center font-code-md font-bold text-on-surface">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+</div>
+<div class="overflow-hidden">
+<h2 class="text-title-md font-title-md uppercase tracking-wider text-on-surface font-bold leading-tight truncate">HoneyTrap Ops</h2>
+<p class="text-label-sm font-label-sm text-outline truncate">Subnet 192.168.1.0/24</p>
+</div>
+</div>
+<!-- CTA Button -->
+<button class="w-full bg-primary-container text-on-primary-container font-headline-md text-title-md py-space-sm px-space-md border-3 border-on-surface shadow-[4px_4px_0_0_#000000] hover:bg-primary-fixed hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0_0_#000000] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all duration-75 flex items-center justify-center gap-2"><span class="material-symbols-outlined text-base font-bold" data-icon="download">download</span><span class="">Download Firmware (.bin)</span></button>
+<!-- Navigation Tabs -->
+<nav class="flex flex-col gap-1.5 mt-2">
+<!-- Active Tab: Telemetry Stream (Active view of this page) -->
+<a class="bg-primary-container text-on-primary-container border-2 border-on-surface font-bold shadow-[2px_2px_0_0_#000000] flex items-center gap-space-sm px-space-md py-space-sm rounded-none text-body-md font-headline-md active:translate-x-1 active:translate-y-1 transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="terminal">terminal</span>
+<span class="">Telemetry Stream</span>
+</a>
+
+
+<a class="text-on-surface border-2 border-transparent font-medium flex items-center gap-space-sm px-space-md py-space-sm rounded-none hover:bg-tertiary-container hover:text-on-tertiary-container text-body-md font-headline-md active:translate-x-1 active:translate-y-1 transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="history_edu">history_edu</span>
+<span class="">Forensic Archive</span>
+</a>
+
+</nav>
+</div>
+<!-- Footer Nav Tabs -->
+<div class="border-t-2 border-on-surface pt-space-sm flex flex-col gap-1">
+<a class="text-on-surface border-2 border-transparent font-medium flex items-center gap-space-sm px-space-md py-1.5 text-body-md font-headline-md hover:bg-surface-variant transition-colors" href="#">
+<span class="material-symbols-outlined text-base" data-icon="settings">settings</span>
+<span class="">SOC Settings</span>
+</a>
+
+</div>
+</aside>
+<!-- DASHBOARD WORKSPACE / CANVAS -->
+<main class="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
+<!-- ================= SECTION 1: SYSTEM CONTROLS & STATUS BAR ================= -->
+<div class="w-full bg-surface-container-lowest border-4 border-on-surface p-space-md shadow-[4px_4px_0_0_#000000] flex flex-wrap items-center justify-between gap-4">
+<!-- Live System Status & State Simulators -->
+<div class="flex flex-wrap items-center gap-3">
+<div class="flex items-center gap-2 bg-primary-container px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000]">
+<span class="w-3 h-3 rounded-full bg-on-surface animate-ping"></span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-black font-extrabold">SYSTEM STATUS: ACTIVE [SAFE]</span>
+</div>
+<div class="flex items-center border-2 border-on-surface bg-surface-container">
+<span class="px-2 font-label-sm text-label-sm text-outline uppercase font-bold">Simulate:</span>
+<button class="px-2 py-1 bg-surface-container-lowest hover:bg-primary-container border-l-2 border-on-surface font-label-sm text-label-sm font-bold text-on-surface transition-colors">SAFE</button>
+<button class="px-2 py-1 bg-surface-container-lowest hover:bg-tertiary-container border-l-2 border-on-surface font-label-sm text-label-sm font-bold text-on-surface transition-colors">WARNING</button>
+<button class="px-2 py-1 bg-surface-container-lowest hover:bg-secondary-container hover:text-white border-l-2 border-on-surface font-label-sm text-label-sm font-bold text-on-surface transition-colors">CRITICAL</button>
+</div>
+</div>
+<!-- Quick Action Trigger Cluster -->
+<div class="flex flex-wrap items-center gap-2">
+<div class="bg-surface-container-high px-3 py-1.5 border-2 border-on-surface font-code-md text-code-md font-bold shadow-[2px_2px_0_0_#000000] flex items-center gap-2"><span class="w-2.5 h-2.5 bg-primary border border-on-surface"></span><span class="">ESP32 NODE: ONLINE [STANDALONE]</span></div>
+
+<button class="bg-surface-container-lowest text-on-surface font-headline-md text-body-md font-bold px-3 py-1.5 border-2 border-on-surface shadow-[3px_3px_0_0_#000000] hover:bg-surface-container active:translate-x-1 active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm" data-icon="delete_sweep">delete_sweep</span>
+            Clear Buffer
+          </button>
+</div>
+</div>
+<!-- ================= SECTION 2: BENTO GRID METRICS (4 CARDS) ================= -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full"><div class="bg-surface-container-lowest border-4 border-black shadow-[4px_4px_0_0_#000000] flex flex-col justify-between"><div class="bg-primary-container border-b-2 border-black px-4 py-2 flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider font-extrabold text-black">VECTOR INTAKE // LIVE</span><span class="material-symbols-outlined text-black" data-icon="shield">shield</span></div><div class="p-space-md flex-1 flex flex-col justify-between"><p class="font-label-md text-label-md uppercase text-outline font-bold">TOTAL INTRUSIONS RECORDED</p><div class="flex items-baseline gap-3 my-2"><span class="font-code-lg text-display-lg font-black text-on-surface tracking-tight">1,204</span><span class="font-label-sm text-label-sm bg-primary-container px-2 py-0.5 border border-black text-black font-extrabold">+18.4% 24h</span></div><div class="mt-4 pt-3 border-t-2 border-dashed border-black"><div class="flex items-end justify-between h-8 gap-1"><div class="w-full bg-surface-container border border-black h-[30%]"></div><div class="w-full bg-surface-container border border-black h-[45%]"></div><div class="w-full bg-surface-container border border-black h-[20%]"></div><div class="w-full bg-surface-container border border-black h-[60%]"></div><div class="w-full bg-surface-container border border-black h-[80%]"></div><div class="w-full bg-primary-container border border-black h-[95%]"></div><div class="w-full bg-surface-container border border-black h-[65%]"></div><div class="w-full bg-primary-container border border-black h-[100%]"></div></div><div class="flex justify-between font-code-sm text-code-sm text-outline mt-1 font-bold"><span class="">00:00</span><span class="">24H WINDOW SPIKE</span><span class="">NOW</span></div></div></div></div><div class="bg-surface-container-lowest border-4 border-black shadow-[4px_4px_0_0_#000000] flex flex-col justify-between"><div class="bg-tertiary-container border-b-2 border-black px-4 py-2 flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider font-extrabold text-black">PORT RECON ACTIVITY</span><span class="material-symbols-outlined text-black" data-icon="lan">lan</span></div><div class="p-space-md flex-1 flex flex-col justify-between"><p class="font-label-md text-label-md uppercase text-outline font-bold">MOST PROBED DECOY PORT</p><div class="flex items-baseline gap-2 my-2"><span class="font-headline-lg text-headline-lg font-black text-on-surface">PORT 22</span><span class="font-label-sm text-label-sm bg-surface-container-high px-2 py-0.5 border border-black font-bold text-black">SSH SERVICE</span></div><div class="space-y-1.5 font-code-sm text-code-sm mt-2"><div><div class="flex justify-between text-on-surface font-bold mb-0.5"><span class="">:22 SSH</span><span class="">684 (56.8%)</span></div><div class="w-full h-2 bg-surface-variant border border-black"><div class="h-full bg-primary-container" style="width: 56.8%;"></div></div></div><div><div class="flex justify-between text-on-surface font-bold mb-0.5"><span class="">:23 TELNET</span><span class="">241 (20.0%)</span></div><div class="w-full h-2 bg-surface-variant border border-black"><div class="h-full bg-secondary-container" style="width: 20%;"></div></div></div><div><div class="flex justify-between text-on-surface font-bold mb-0.5"><span class="">:80 HTTP</span><span class="">189 (15.7%)</span></div><div class="w-full h-2 bg-surface-variant border border-black"><div class="h-full bg-tertiary-container" style="width: 15.7%;"></div></div></div><div><div class="flex justify-between text-on-surface font-bold mb-0.5"><span class="">:21 FTP</span><span class="">90 (7.5%)</span></div><div class="w-full h-2 bg-surface-variant border border-black"><div class="h-full bg-outline-variant" style="width: 7.5%;"></div></div></div></div></div></div><div class="bg-surface-container-lowest border-4 border-black shadow-[4px_4px_0_0_#000000] flex flex-col justify-between"><div class="bg-secondary-fixed border-b-2 border-black px-4 py-2 flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider font-extrabold text-black">INCIDENT DISPATCH</span><span class="bg-secondary-container text-white px-1.5 py-0.5 font-label-sm text-label-sm font-bold border border-black">SEV-1 CRITICAL</span></div><div class="p-space-md flex-1 flex flex-col justify-between"><p class="font-label-md text-label-md uppercase text-outline font-bold">LAST INTRUSION EVENT</p><div class="my-2"><span class="font-code-lg text-title-md font-bold text-secondary block uppercase">14S AGO</span><span class="font-code-sm text-code-sm text-outline">2026-09-28 12:05:00 UTC</span></div><div class="bg-surface-container p-2.5 border-2 border-black font-code-sm text-code-sm mt-2"><div class="text-secondary font-bold">ATTACKER IP:</div><div class="font-bold text-on-surface truncate">SRC: 192.168.43.20</div><div class="text-primary font-bold mt-1">PAYLOAD SUMMARY:</div><div class="font-bold text-on-surface truncate">root attempt</div></div></div></div></div>
+<!-- ================= SECTION 3: LIVE ATTACK TERMINAL (FULL WIDTH BENTO) ================= -->
+<div class="bg-inverse-surface border-4 border-on-surface shadow-[6px_6px_0_0_#000000] overflow-hidden">
+<!-- Terminal Header Toolbar -->
+<div class="bg-black border-b-2 border-outline px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-white">
+<div class="flex items-center gap-3">
+<!-- Retro Window Circles -->
+<div class="flex items-center gap-1.5">
+<div class="w-3.5 h-3.5 rounded-none bg-secondary-container border border-white"></div>
+<div class="w-3.5 h-3.5 rounded-none bg-tertiary-container border border-white"></div>
+<div class="w-3.5 h-3.5 rounded-none bg-primary-container border border-white"></div>
+</div>
+<span class="font-code-md text-code-md font-bold tracking-wider text-primary-fixed-dim">TERMINAL://sensor-feed.tty1 [LIVE STREAMING - 9600 BAUD]</span>
+</div>
+<!-- Terminal Controls -->
+<div class="flex items-center gap-2">
+<button class="px-2 py-0.5 bg-inverse-surface hover:bg-surface-variant text-white font-code-sm text-code-sm border border-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="pause">pause</span>
+              Pause Feed
+            </button>
+<button class="px-2 py-0.5 bg-primary-container text-black font-code-sm text-code-sm font-bold border border-black flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="check">check</span>
+              Auto-Scroll ON
+            </button>
+<button class="px-2 py-0.5 bg-inverse-surface hover:bg-surface-variant text-white font-code-sm text-code-sm border border-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="clear_all">clear_all</span>
+              Clear Console
+            </button>
+<button class="px-2 py-0.5 bg-inverse-surface hover:bg-surface-variant text-white font-code-sm text-code-sm border border-outline flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="file_download">file_download</span>
+              Export Stream
+            </button>
+</div>
+</div>
+<!-- Terminal Console Log Stream -->
+<div class="p-4 bg-black font-code-md text-code-md text-white space-y-2 h-72 overflow-y-auto custom-scrollbar leading-relaxed">
+<div class="text-outline">[ESP32 BOOT] FreeRTOS initialized on Core 0 &amp; Core 1. WiFi connected (SSID: IoT-Trap-Mesh, IP: 192.168.1.104).</div>
+<div class="text-outline">[HONEYTRAP] Lightweight listener daemon active on ports 21, 22, 23, 80 // Telemetry push to Laravel API [READY].</div>
+<!-- Stream Entry 1 -->
+<div class="flex flex-wrap items-start gap-2">
+<span class="bg-secondary-container text-white px-1.5 py-0.2 font-label-sm text-label-sm font-bold border border-white">[CRITICAL]</span>
+<span class="text-outline">2026-09-28 12:05:00</span>
+<span class="text-primary-fixed font-bold">IP: 192.168.43.20</span>
+<span class="text-white">connected to Port 22.</span>
+<span class="text-tertiary-fixed font-semibold">Payload: 'root'</span>
+<span class="text-secondary-fixed-dim">[SSH Brute Force: Attempt 41/100]</span>
+</div>
+<!-- Stream Entry 2 -->
+<div class="flex flex-wrap items-start gap-2">
+<span class="bg-secondary-container text-white px-1.5 py-0.2 font-label-sm text-label-sm font-bold border border-white">[CRITICAL]</span>
+<span class="text-outline">2026-09-28 12:04:47</span>
+<span class="text-primary-fixed font-bold">IP: 104.28.19.88</span>
+<span class="text-white">connected to Port 80.</span>
+<span class="text-tertiary-fixed font-semibold">Payload: "' OR 1=1; DROP TABLE users;--"</span>
+<span class="text-secondary-fixed-dim">[SQLi Web Decoy Triggered]</span>
+</div>
+<!-- Stream Entry 3 -->
+<div class="flex flex-wrap items-start gap-2">
+<span class="bg-tertiary-container text-black px-1.5 py-0.2 font-label-sm text-label-sm font-bold border border-black">[WARNING]</span>
+<span class="text-outline">2026-09-28 12:03:19</span>
+<span class="text-primary-fixed font-bold">IP: 45.142.122.5</span>
+<span class="text-white">connected to Port 23.</span>
+<span class="text-tertiary-fixed font-semibold">Payload: 'enable; system; shell'</span>
+<span class="text-tertiary-fixed-dim">[Mirai IoT Botnet Signature]</span>
+</div>
+<!-- Stream Entry 4 -->
+<div class="flex flex-wrap items-start gap-2">
+<span class="bg-surface-variant text-black px-1.5 py-0.2 font-label-sm text-label-sm font-bold border border-black">[INFO]</span>
+<span class="text-outline">2026-09-28 12:02:55</span>
+<span class="text-primary-fixed font-bold">IP: 185.220.101.9</span>
+<span class="text-white">connected to Port 21.</span>
+<span class="text-tertiary-fixed font-semibold">Payload: 'USER anonymous PASS IEUser@'</span>
+<span class="text-outline-variant">[FTP Recon Sweep]</span>
+</div>
+<!-- Stream Entry 5 -->
+<div class="flex flex-wrap items-start gap-2">
+<span class="bg-secondary-container text-white px-1.5 py-0.2 font-label-sm text-label-sm font-bold border border-white">[CRITICAL]</span>
+<span class="text-outline">2026-09-28 12:01:12</span>
+<span class="text-primary-fixed font-bold">IP: 192.168.43.20</span>
+<span class="text-white">connected to Port 22.</span>
+<span class="text-tertiary-fixed font-semibold">Payload: 'admin:password123'</span>
+<span class="text-secondary-fixed-dim">[Dictionary Attack]</span>
+</div>
+<!-- Live Blinking Prompt Cursor -->
+<div class="flex items-center gap-1 text-primary-container pt-2">
+<span class="text-primary-fixed font-bold">guest@honeytrap-iot:~$</span>
+<span class="inline-block w-2.5 h-4 bg-primary-container blinking-cursor"></span>
+</div>
+</div>
+<!-- Terminal Quick Command Footer -->
+<div class="bg-inverse-surface border-t-2 border-outline px-4 py-2 flex flex-wrap items-center justify-between gap-2"><div class="flex items-center gap-2"><span class="font-code-sm text-code-sm text-primary-fixed font-bold">JSON LOG INGESTION STREAM // READ-ONLY FEED</span></div><span class="font-code-sm text-code-sm text-outline">LARAVEL SYNC: HTTP/200 OK</span></div>
+</div>
+<!-- ================= SECTION 4: HISTORICAL FORENSIC DATA TABLE ================= -->
+<div class="bg-surface-container-lowest border-4 border-on-surface shadow-[4px_4px_0_0_#000000]">
+<!-- Table Toolbar & Filters -->
+<div class="p-space-md border-b-4 border-on-surface flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+<!-- Search Input -->
+<div class="relative flex-1 max-w-lg">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-black">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</div>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border-2 border-on-surface font-code-md text-code-md text-on-surface shadow-[3px_3px_0_0_#000000] focus:outline-none focus:ring-0 focus:shadow-[5px_5px_0_0_#000000] focus:bg-surface-container-low transition-all" placeholder="Filter by IP, Port, or Payload signature..." type="text">
+</div>
+<!-- Protocol Filter Pills & Export -->
+<div class="flex flex-wrap items-center gap-2">
+<button class="bg-primary-container text-black font-label-sm text-label-sm font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000]">ALL (1,204)</button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-primary-container transition-colors">SSH :22 (684)</button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-primary-container transition-colors">TELNET :23 (241)</button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-primary-container transition-colors">HTTP :80 (189)</button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-primary-container transition-colors">FTP :21 (90)</button>
+<button class="ml-auto bg-surface-container-high text-on-surface font-headline-md text-body-md font-bold px-3 py-1.5 border-2 border-on-surface shadow-[2px_2px_0_0_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0_0_#000000] transition-all flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="file_present">file_present</span>
+              Export CSV/JSON
+            </button>
+</div>
+</div>
+<!-- Forensic Table Layout -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-tertiary-container text-black font-label-md text-label-md uppercase border-b-2 border-on-surface">
+<th class="p-3 border-r-2 border-on-surface font-bold">TIMESTAMP</th>
+<th class="p-3 border-r-2 border-on-surface font-bold">ATTACKER IP</th>
+<th class="p-3 border-r-2 border-on-surface font-bold">TARGET PORT &amp; SERVICE</th>
+<th class="p-3 border-r-2 border-on-surface font-bold">RAW PAYLOAD / EXPLOIT</th>
+<th class="p-3 border-on-surface font-bold">THREAT LEVEL</th>
+
+</tr>
+</thead>
+<tbody class="divide-y-2 divide-on-surface font-code-sm text-code-sm"><tr class="hover:bg-primary-container transition-colors group"><td class="p-3 border-r-2 border-black font-bold whitespace-nowrap"><div class="">2026-09-28 12:05:00</div><span class="text-outline group-hover:text-black">14s ago</span></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><div class="flex items-center gap-2"><span class="font-bold text-on-surface group-hover:text-black">192.168.43.20</span></div></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><span class="bg-primary-fixed px-2 py-0.5 border-2 border-black font-bold text-black">22 / SSH</span></td><td class="p-3 border-r-2 border-black"><div class="flex items-center justify-between gap-2 bg-surface-container group-hover:bg-surface-container-lowest px-2 py-1 border border-black"><code class="font-code-md text-code-md text-secondary font-bold truncate">root:admin_2026! [Brute-force]</code><button class="hover:opacity-75" title="Copy"><span class="material-symbols-outlined text-xs" data-icon="content_copy">content_copy</span></button></div></td><td class="p-3 border-black whitespace-nowrap"><span class="bg-secondary-container text-white px-2 py-1 border-2 border-black font-label-sm text-label-sm font-black">CRITICAL</span></td></tr><tr class="hover:bg-primary-container transition-colors group bg-surface-container-low"><td class="p-3 border-r-2 border-black font-bold whitespace-nowrap"><div class="">2026-09-28 12:04:47</div><span class="text-outline group-hover:text-black">27s ago</span></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><div class="flex items-center gap-2"><span class="font-bold text-on-surface group-hover:text-black">104.28.19.88</span></div></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><span class="bg-tertiary-container px-2 py-0.5 border-2 border-black font-bold text-black">80 / HTTP</span></td><td class="p-3 border-r-2 border-black"><div class="flex items-center justify-between gap-2 bg-surface-container group-hover:bg-surface-container-lowest px-2 py-1 border border-black"><code class="font-code-md text-code-md text-secondary font-bold truncate">' OR 1=1; DROP TABLE users;--</code><button class="hover:opacity-75" title="Copy"><span class="material-symbols-outlined text-xs" data-icon="content_copy">content_copy</span></button></div></td><td class="p-3 border-black whitespace-nowrap"><span class="bg-secondary-container text-white px-2 py-1 border-2 border-black font-label-sm text-label-sm font-black">CRITICAL</span></td></tr><tr class="hover:bg-primary-container transition-colors group"><td class="p-3 border-r-2 border-black font-bold whitespace-nowrap"><div class="">2026-09-28 12:03:19</div><span class="text-outline group-hover:text-black">1m 55s ago</span></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><div class="flex items-center gap-2"><span class="font-bold text-on-surface group-hover:text-black">45.142.122.5</span></div></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><span class="bg-secondary-fixed px-2 py-0.5 border-2 border-black font-bold text-black">23 / TELNET</span></td><td class="p-3 border-r-2 border-black"><div class="flex items-center justify-between gap-2 bg-surface-container group-hover:bg-surface-container-lowest px-2 py-1 border border-black"><code class="font-code-md text-code-md text-on-surface font-bold truncate">enable; system; shell [Mirai probe]</code><button class="hover:opacity-75" title="Copy"><span class="material-symbols-outlined text-xs" data-icon="content_copy">content_copy</span></button></div></td><td class="p-3 border-black whitespace-nowrap"><span class="bg-tertiary-container text-black px-2 py-1 border-2 border-black font-label-sm text-label-sm font-black">WARNING</span></td></tr><tr class="hover:bg-primary-container transition-colors group bg-surface-container-low"><td class="p-3 border-r-2 border-black font-bold whitespace-nowrap"><div class="">2026-09-28 12:02:55</div><span class="text-outline group-hover:text-black">2m 19s ago</span></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><div class="flex items-center gap-2"><span class="font-bold text-on-surface group-hover:text-black">185.220.101.9</span></div></td><td class="p-3 border-r-2 border-black whitespace-nowrap"><span class="bg-primary-container px-2 py-0.5 border-2 border-black font-bold text-black">21 / FTP</span></td><td class="p-3 border-r-2 border-black"><div class="flex items-center justify-between gap-2 bg-surface-container group-hover:bg-surface-container-lowest px-2 py-1 border border-black"><code class="font-code-md text-code-md text-on-surface font-bold truncate">USER anonymous PASS IEUer@</code><button class="hover:opacity-75" title="Copy"><span class="material-symbols-outlined text-xs" data-icon="content_copy">content_copy</span></button></div></td><td class="p-3 border-black whitespace-nowrap"><span class="bg-tertiary-fixed text-black px-2 py-1 border-2 border-black font-label-sm text-label-sm font-black">ELEVATED</span></td></tr></tbody>
+</table>
+</div>
+<!-- Table Brutalist Pagination Footer -->
+<div class="p-space-md border-t-2 border-on-surface bg-surface-container-lowest flex flex-wrap items-center justify-between gap-4">
+<div class="font-code-sm text-code-sm font-bold text-outline">
+            SHOWING <span class="text-on-surface">1 - 4</span> OF <span class="text-on-surface">1,204</span> INTRUSION RECORDS
+          </div>
+<div class="flex items-center gap-1.5">
+<button class="px-3 py-1 bg-surface-container-low border-2 border-on-surface font-code-sm text-code-sm font-bold text-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">Previous</button>
+<button class="w-8 h-8 bg-primary-container border-2 border-on-surface font-code-sm text-code-sm font-bold text-black shadow-[2px_2px_0_0_#000000]">1</button>
+<button class="w-8 h-8 bg-surface-container-lowest hover:bg-surface-variant border-2 border-on-surface font-code-sm text-code-sm font-bold text-on-surface shadow-[2px_2px_0_0_#000000] transition-colors">2</button>
+<button class="w-8 h-8 bg-surface-container-lowest hover:bg-surface-variant border-2 border-on-surface font-code-sm text-code-sm font-bold text-on-surface shadow-[2px_2px_0_0_#000000] transition-colors">3</button>
+<span class="px-1 font-code-sm text-code-sm font-bold">...</span>
+<button class="w-8 h-8 bg-surface-container-lowest hover:bg-surface-variant border-2 border-on-surface font-code-sm text-code-sm font-bold text-on-surface shadow-[2px_2px_0_0_#000000] transition-colors">24</button>
+<button class="px-3 py-1 bg-surface-container-low border-2 border-on-surface font-code-sm text-code-sm font-bold text-on-surface shadow-[2px_2px_0_0_#000000] hover:bg-surface-variant active:translate-x-1 active:translate-y-1 active:shadow-none transition-all">Next</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Micro Inline Interaction Script for Terminal & UI Feedback -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Add subtle interactive click feeling for command buttons
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach(btn => {
+        btn.addEventListener('mousedown', () => {
+          btn.classList.add('scale-[0.98]');
+        });
+        btn.addEventListener('mouseup', () => {
+          btn.classList.remove('scale-[0.98]');
+        });
+      });
+    });
+
+    // --- INTEGRASI KE BACKEND LARAVEL ---
+    async function fetchHoneypotData() {
+      try {
+        const res = await fetch('/api/honeypot/history');
+        const data = await res.json();
+        
+        if (!data || !Array.isArray(data)) return;
+
+        // 1. Update Table
+        const tbody = document.querySelector('tbody.divide-y-2');
+        if (tbody) {
+          tbody.innerHTML = ''; // bersihkan dummy data
+          
+          if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center font-bold text-outline uppercase tracking-wider">Menunggu deteksi serangan dari ESP32...</td></tr>`;
+          }
+
+          data.forEach((item, index) => {
+            const bgClass = index % 2 !== 0 ? 'bg-surface-container-low' : '';
+            let level = 'INFO';
+            let levelColor = 'bg-surface-variant text-black';
+            let portColor = 'bg-primary-container text-black';
+            
+            if (item.target_port == 22 || item.target_port == 80 || item.target_port == 443) { 
+              level = 'CRITICAL'; levelColor = 'bg-secondary-container text-white'; portColor = 'bg-primary-fixed'; 
+            } else if (item.target_port == 23) { 
+              level = 'WARNING'; levelColor = 'bg-tertiary-container text-black'; portColor = 'bg-secondary-fixed'; 
+            }
+
+            const date = new Date(item.created_at);
+            const dateStr = date.toISOString().replace('T', ' ').substring(0, 19);
+
+            tbody.innerHTML += `
+            <tr class="hover:bg-primary-container transition-colors group ${bgClass}">
+              <td class="p-3 border-r-2 border-black font-bold whitespace-nowrap">
+                <div>${dateStr}</div>
+              </td>
+              <td class="p-3 border-r-2 border-black whitespace-nowrap">
+                <div class="flex items-center gap-2"><span class="font-bold text-on-surface group-hover:text-black">${item.attacker_ip}</span></div>
+              </td>
+              <td class="p-3 border-r-2 border-black whitespace-nowrap">
+                <span class="${portColor} px-2 py-0.5 border-2 border-black font-bold text-black">${item.target_port}</span>
+              </td>
+              <td class="p-3 border-r-2 border-black">
+                <div class="flex items-center justify-between gap-2 bg-surface-container group-hover:bg-surface-container-lowest px-2 py-1 border border-black">
+                  <code class="font-code-md text-code-md text-secondary font-bold truncate">${item.raw_payload || 'N/A'}</code>
+                </div>
+              </td>
+              <td class="p-3 border-black whitespace-nowrap">
+                <span class="${levelColor} px-2 py-1 border-2 border-black font-label-sm text-label-sm font-black">${level}</span>
+              </td>
+            </tr>`;
+          });
+        }
+
+        // 2. Update Terminal Live Feed
+        const terminal = document.querySelector('.h-72.overflow-y-auto');
+        if (terminal) {
+           const lines = Array.from(terminal.children);
+           const keep = lines.slice(0, 2).map(el => el.outerHTML).join('');
+           let termHtml = keep;
+
+           data.slice(0, 20).forEach(item => {
+             const date = new Date(item.created_at);
+             const dateStr = date.toISOString().replace('T', ' ').substring(0, 19);
+             
+             let levelTag = '[INFO]';
+             let tagClass = 'bg-surface-variant text-black border-black';
+             if (item.target_port == 22 || item.target_port == 80) {
+               levelTag = '[CRITICAL]'; tagClass = 'bg-secondary-container text-white border-white';
+             } else if (item.target_port == 23) {
+               levelTag = '[WARNING]'; tagClass = 'bg-tertiary-container text-black border-black';
+             }
+
+             termHtml += `
+             <div class="flex flex-wrap items-start gap-2">
+               <span class="${tagClass} px-1.5 py-0.2 font-label-sm text-label-sm font-bold border">${levelTag}</span>
+               <span class="text-outline">${dateStr}</span>
+               <span class="text-primary-fixed font-bold">IP: ${item.attacker_ip}</span>
+               <span class="text-white">connected to Port ${item.target_port}.</span>
+               <span class="text-tertiary-fixed font-semibold">Payload: '${item.raw_payload || ''}'</span>
+             </div>`;
+           });
+           
+           termHtml += `
+           <div class="flex items-center gap-1 text-primary-container pt-2">
+             <span class="text-primary-fixed font-bold">guest@honeytrap-iot:~$</span>
+             <span class="inline-block w-2.5 h-4 bg-primary-container blinking-cursor"></span>
+           </div>`;
+           
+           terminal.innerHTML = termHtml;
+        }
+
+        // 3. Update total count
+        const totalSpan = document.querySelector('.text-display-lg');
+        if (totalSpan) totalSpan.innerText = data.length.toLocaleString();
+
+      } catch (e) {
+        console.error("Failed to fetch honeypot data", e);
+      }
+    }
+
+    // Polling setiap 3 detik
+    setInterval(fetchHoneypotData, 3000);
+    fetchHoneypotData();
+  </script>
+</body></html>

@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "author": "HoneyTrap IoT - Cyber-Physical Guard",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": 10,
+      "left": -210,
+      "attrs": {
+        "color": "limegreen",
+        "label": "SAFE (D25)"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_yellow",
+      "top": 70,
+      "left": -210,
+      "attrs": {
+        "color": "yellow",
+        "label": "WARNING (D26)"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": 130,
+      "left": -210,
+      "attrs": {
+        "color": "red",
+        "label": "CRITICAL (D27)"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_green",
+      "top": 42,
+      "left": -125,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_yellow",
+      "top": 102,
+      "left": -125,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_red",
+      "top": 162,
+      "left": -125,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 195,
+      "left": -220,
+      "attrs": {
+        "volume": "0.2",
+        "label": "SIREN (D14)"
+      }
+    },
+    {
+      "type": "wokwi-pir-motion-sensor",
+      "id": "pir1",
+      "top": -115,
+      "left": -175,
+      "attrs": {
+        "label": "PIR MOTION (D32)"
+      }
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": 230,
+      "left": 150,
+      "attrs": {
+        "label": "RACK LOCK SERVO (D13)"
+      }
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht1",
+      "top": -80,
+      "left": 170,
+      "attrs": {
+        "label": "RACK TEMP (D4)"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_reset",
+      "top": 130,
+      "left": 160,
+      "attrs": {
+        "color": "blue",
+        "label": "RESET & UNLOCK (GPIO 0 / BOOT)"
+      }
+    }
+  ],
+  "connections": [
+    [ "esp:D25", "r_green:2", "limegreen", [ "h-28", "v-35" ] ],
+    [ "r_green:1", "led_green:A", "limegreen", [ "h0" ] ],
+    [ "led_green:C", "esp:GND.2", "black", [ "v140", "h190" ] ],
+
+    [ "esp:D26", "r_yellow:2", "gold", [ "h-18", "v15" ] ],
+    [ "r_yellow:1", "led_yellow:A", "gold", [ "h0" ] ],
+    [ "led_yellow:C", "esp:GND.2", "black", [ "v80", "h190" ] ],
+
+    [ "esp:D27", "r_red:2", "red", [ "h-18", "v65" ] ],
+    [ "r_red:1", "led_red:A", "red", [ "h0" ] ],
+    [ "led_red:C", "esp:GND.2", "black", [ "v20", "h190" ] ],
+
+    [ "esp:D14", "bz1:2", "orange", [ "h-38", "v145" ] ],
+    [ "bz1:1", "esp:GND.2", "black", [ "v10", "h200" ] ],
+
+    [ "pir1:OUT", "esp:D32", "magenta", [ "v45", "h80" ] ],
+    [ "pir1:VCC", "esp:VIN", "red", [ "v65", "h80" ] ],
+    [ "pir1:GND", "esp:GND.2", "black", [ "v55", "h80" ] ],
+
+    [ "servo1:PWM", "esp:D13", "gold", [ "h-40", "v-90" ] ],
+    [ "servo1:V+", "esp:VIN", "red", [ "h-50", "v-70" ] ],
+    [ "servo1:GND", "esp:GND.2", "black", [ "h-60", "v-80" ] ],
+
+    [ "dht1:SDA", "esp:D4", "cyan", [ "v40", "h-60" ] ],
+    [ "dht1:VCC", "esp:3V3", "red", [ "v50", "h-60" ] ],
+    [ "dht1:GND", "esp:GND.1", "black", [ "v60", "h-60" ] ],
+
+    [ "esp:D0", "btn_reset:1.l", "cyan", [ "h35", "v0" ] ],
+    [ "btn_reset:2.l", "esp:GND.1", "black", [ "h-35", "v0" ] ]
+  ],
+  "dependencies": {}
+}

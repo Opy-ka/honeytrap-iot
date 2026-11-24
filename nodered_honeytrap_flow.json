@@ -1,0 +1,227 @@
+[
+    {
+        "id": "honeytrap_tab",
+        "type": "tab",
+        "label": "HoneyTrap IoT (PQC + Servo Guard)",
+        "disabled": false,
+        "info": "Jembatan EMQX Cloud -> PQC Security Gateway (ML-KEM-512 + ML-DSA-44 + AES-256-GCM) -> Laravel API & Remote Servo Unlock"
+    },
+    {
+        "id": "mqtt_in_emqx",
+        "type": "mqtt in",
+        "z": "honeytrap_tab",
+        "name": "EMQX: honeytrap/intrusions (PQC Envelope)",
+        "topic": "honeytrap/intrusions",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "emqx_cloud_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 210,
+        "y": 140,
+        "wires": [
+            [
+                "http_post_pqc_gateway",
+                "dbg_mqtt_raw"
+            ]
+        ]
+    },
+    {
+        "id": "inject_tamper_test",
+        "type": "inject",
+        "z": "honeytrap_tab",
+        "name": "Simulasi Serangan Palsu / Tampered (Ditolak 403 ML-DSA)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"pqc\":\"ML-KEM-512+ML-DSA-44+AES-256-GCM\",\"kem_ct\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\",\"iv\":\"rxYGSVgR5bFzcSPT\",\"aes_ct\":\"r1h3oucz7PtWEOy8rYAdTKlW\",\"tag\":\"5FP5zF5hhLa6wYkgyZeVSw==\",\"sig\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}",
+        "payloadType": "json",
+        "x": 250,
+        "y": 240,
+        "wires": [
+            [
+                "http_post_pqc_gateway"
+            ]
+        ]
+    },
+    {
+        "id": "http_post_pqc_gateway",
+        "type": "http request",
+        "z": "honeytrap_tab",
+        "name": "POST PQC Gateway (:3005/api/pqc/verify-decrypt)",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://127.0.0.1:3005/api/pqc/verify-decrypt",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "Content-Type",
+                "valueType": "other",
+                "valueValue": "application/json"
+            }
+        ],
+        "x": 630,
+        "y": 180,
+        "wires": [
+            [
+                "dbg_pqc_laravel_res"
+            ]
+        ]
+    },
+    {
+        "id": "dbg_mqtt_raw",
+        "type": "debug",
+        "z": "honeytrap_tab",
+        "name": "1. Raw MQTT Masuk (Ciphertext PQC)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 590,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "dbg_pqc_laravel_res",
+        "type": "debug",
+        "z": "honeytrap_tab",
+        "name": "2. Response PQC Gateway & Laravel",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "statusCode",
+        "statusType": "msg",
+        "x": 970,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "http_in_reset",
+        "type": "http in",
+        "z": "honeytrap_tab",
+        "name": "Terima Klik SAFE / Unlock Servo dari Dashboard",
+        "url": "/api/reset-alarm",
+        "method": "post",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 230,
+        "y": 380,
+        "wires": [
+            [
+                "fn_cors_safe",
+                "mqtt_out_command"
+            ]
+        ]
+    },
+    {
+        "id": "inject_manual_safe",
+        "type": "inject",
+        "z": "honeytrap_tab",
+        "name": "Manual Reset Alarm & Unlock Servo (SAFE)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "SAFE",
+        "payloadType": "str",
+        "x": 220,
+        "y": 440,
+        "wires": [
+            [
+                "mqtt_out_command"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_out_command",
+        "type": "mqtt out",
+        "z": "honeytrap_tab",
+        "name": "EMQX Out: honeytrap/command",
+        "topic": "honeytrap/command",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "emqx_cloud_broker",
+        "x": 610,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "fn_cors_safe",
+        "type": "function",
+        "z": "honeytrap_tab",
+        "name": "Set Response OK",
+        "func": "msg.headers = {\n    'Access-Control-Allow-Origin': '*',\n    'Access-Control-Allow-Methods': 'POST, OPTIONS',\n    'Access-Control-Allow-Headers': 'Content-Type'\n};\nmsg.payload = { status: 'Alarm Reset & Servo Unlock Sent to ESP32' };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 360,
+        "wires": [
+            [
+                "http_res_safe"
+            ]
+        ]
+    },
+    {
+        "id": "http_res_safe",
+        "type": "http response",
+        "z": "honeytrap_tab",
+        "name": "HTTP 200 OK",
+        "statusCode": "200",
+        "headers": {},
+        "x": 790,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "emqx_cloud_broker",
+        "type": "mqtt-broker",
+        "name": "EMQX Online Broker",
+        "broker": "c10481f8.ala.asia-southeast1.emqxsl.com",
+        "port": "8883",
+        "tls": "",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": true,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true
+    }
+]
