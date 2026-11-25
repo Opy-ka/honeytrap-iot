@@ -1,80 +1,70 @@
 # Product Requirements Document (PRD)
 
-**Product Name:** HoneyTrap IoT (Sistem Honeypot & Deteksi Intrusi Jaringan Lokal Berbasis ESP32 & Cloud MQTT)  
-**Document Version:** 2.0 (Final Architecture — EMQX Cloud, Node-RED Bridge, Bidirectional Control & Frosted Glassmorphism SOC)  
+**Product Name:** HoneyTrap IoT — Cyber-Physical Server Room Guard (PQC Edition)  
+**Document Version:** 3.0 (Final Architecture — Cyber-Physical Sensing, Servo Auto-Lockdown, PQC Transfer Security & Maintenance Governance)  
 **Date:** November 2026  
 
 ---
 
 ## 1. Executive Summary
-**HoneyTrap IoT** adalah sistem keamanan siber defensif (*deception technology*) berbiaya rendah dan berdaya rendah yang memposisikan mikrokontroler **ESP32** sebagai perangkat umpan (*decoy sensor*) di dalam jaringan Wi-Fi lokal. Sistem ini membuka dan menyimulasikan *port* layanan jaringan yang tampak rentan (**FTP Port 21, SSH Port 22, Telnet Port 23, dan HTTP Port 80**) lengkap dengan *fake banner grabbing* untuk memancing, menjebak, serta merekam jejak digital penyerang (alamat IP, port sasaran, dan *raw payload* eksploitasi).
+**HoneyTrap IoT** adalah sistem keamanan ruang server terpadu (*Cyber-Physical Server Room Guard*) berbasis mikrokontroler **ESP32** yang menggabungkan teknologi jebakan siber (*Network Honeypot*) dengan pengamanan fisik ruang/rak server secara otonom (*Edge Computing*).
 
-Pada revisi arsitektur v2.0 ini, telemetri serangan dikirim secara terenkripsi melalui **EMQX Cloud (MQTT over TLS Port 8883)**, dijembatani dan dinormalisasi oleh **Node-RED**, lalu diproses oleh **Backend Laravel** untuk disimpan ke basis data relasional serta didistribusikan melalui **Sistem Peringatan 3 Lapis (3-Tier Alerting System)** dan dikendalikan secara dua arah (*bidirectional*) melalui **Dashboard Web Next.js bertema Frosted Glassmorphism**.
+Di sisi siber, ESP32 menyimulasikan 4 layanan jaringan rentan (**FTP Port 21, SSH Port 22, Telnet Port 23, dan HTTP Port 80**) dengan *Fake Banner* pengendali HVAC ruang server yang menampilkan suhu nyata dari sensor. Di sisi fisik, ESP32 dilengkapi **Sensor Gerak PIR (`GPIO 32`)**, **Sensor Suhu & Kelembapan (`GPIO 4`)**, serta aktuator mekanik **Motor Servo SG90 (`GPIO 13`)** sebagai pengunci pintu rak server otomatis. Seluruh telemetri yang dikirim dari ESP32 melewati broker **EMQX Cloud** diamankan secara *end-to-end* menggunakan standar **Post-Quantum Cryptography (PQC): ML-KEM-512 + ML-DSA-44 + AES-256-GCM**, diverifikasi oleh **PQC Security Gateway**, dan dikelola melalui **Dashboard SOC Next.js bertema Frosted Glassmorphism** lengkap dengan fitur **Mode Perbaikan Berautentikasi**, **Retensi Suhu 3 Jam Terakhir**, dan **Arsip Log Forensik Berpassword**.
 
 ---
 
 ## 2. Objectives & Success Metrics
-* **Deteksi & Respons Real-Time (< 2 Detik):** Menangkap paket anomali pada *socket* ESP32, memicu alarm fisik lokal seketika, dan menampilkan insiden pada dasbor web serta Telegram dalam waktu kurang dari 2 detik.
-* **Kendali Dua Arah (Bidirectional SOC Control):** Memungkinkan administrator mematikan alarm fisik (LED & Buzzer pada ESP32) baik secara lokal melalui tombol perangkat keras maupun secara jarak jauh melalui tombol **Acknowledge & Set Safe** pada dasbor web.
-* **Ketahanan Perangkat Keras (Hardware Resilience):** Mencapai *uptime* tinggi dengan perlindungan **Watchdog Timer (`esp_task_wdt`)** berbatas 15 detik, *timeout* handshake TLS 5 detik, dan pembatasan maksimum 3 koneksi klien simultan per port untuk mencegah serangan *Denial of Service* (DoS / *SYN Flood*) atau *Out of Memory* (OOM).
-* **Akurasi Forensik & Zona Waktu Lokal:** Mencatat minimal 90% *payload* serangan secara terstruktur di MySQL dengan penyesuaian zona waktu lokal **WIB (`Asia/Jakarta`)** untuk keabsahan audit forensik.
+* **Respons Otonom di Edge (Online & Offline < 0.5 Detik):** Ketika terdeteksi penyusup fisik oleh sensor gerak PIR maupun serangan siber kritis (Port 22/80), ESP32 seketika memutar **Servo ke sudut `90°` (`LOCKED`)** dan membunyikan sirine bahkan saat koneksi internet terputus.
+* **Keamanan Transfer Tahan Kuantum (*Post-Quantum Security*):** Mengamankan 100% paket telemetri MQTT menggunakan enkapsulasi kunci **ML-KEM-512 (FIPS 203)**, enkripsi **AES-256-GCM**, dan tanda tangan digital **ML-DSA-44 (FIPS 204)** sehingga tahan terhadap penyadapan maupun pemalsuan paket (*spoofing/tampering*).
+* **Tata Kelola Operasional Ruang Server (*Maintenance & Data Retention*):**
+  * Menyediakan **Mode Perbaikan (Maintenance Mode)** dengan login teknisi (Username & Password) untuk menonaktifkan sementara pemicu sensor gerak PIR selama teknisi memperbaiki server, serta mencatat audit log-nya di database.
+  * Mengelola efisiensi database dengan kebijakan **Retensi Suhu 3 Jam Terakhir (*3-Hour Rolling Window*)** pada tabel `server_temperatures`, sementara seluruh log serangan (`intrusions`) dan log perbaikan (`maintenance_logs`) disimpan permanen dan diproteksi dengan *Password Gate*.
 
 ---
 
 ## 3. System Architecture & Tech Stack
 
-### 3.1 Diagram Alur Arsitektur End-to-End
+### 3.1 Diagram Arsitektur End-to-End
 ```mermaid
 flowchart LR
-    ATK["Penyerang / Scanner\n(Nmap, FTP, SSH, Telnet, Curl)"] -- "TCP Probe\nPort 21, 22, 23, 80" --> ESP["ESP32 Decoy Node\n(Lapis 1: LED + Passive Buzzer)"]
-    ESP -- "MQTT over TLS (8883)\nTopic: honeytrap/intrusions" --> EMQX["EMQX Cloud Broker\n(Serverless Online)"]
-    EMQX -- "MQTT Subscribe" --> NR["Node-RED Middleware\n(Normalisasi & Debug Flow)"]
-    NR -- "HTTP POST\n/api/honeypot/log" --> LRV["Laravel 13 Backend API\n(Timezone: Asia/Jakarta)"]
-    LRV -- "Simpan Log" --> DB[("MySQL Database\n(Tabel intrusions)")]
-    LRV -- "Webhook Alert\n(Lapis 2)" --> TG["Telegram Bot API\n(Notifikasi Smartphone)"]
-    NEXT["Next.js 16 SOC Dashboard\n(Lapis 3: Frosted Glass UI)"] -- "Polling 2s GET\n/api/honeypot/history" --> LRV
-    NEXT -- "Klik Acknowledge & Set Safe\nPOST /api/reset-alarm" --> NR
-    NR -- "MQTT Publish\nTopic: honeytrap/command ('SAFE')" --> EMQX
-    EMQX -- "Perintah Reset Alarm" --> ESP
+    ATK["Penyerang Siber / Penyusup Fisik\n(Port 21,22,23,80 / Gerakan PIR / Suhu DHT)"] --> ESP["ESP32 Cyber-Physical Node\n(Edge: Servo Lockdown + LED + Buzzer\nFreeRTOS Task: ML-KEM + AES-GCM + ML-DSA)"]
+    ESP -- "MQTT TLS (8883) PQC Envelope\nTopic: honeytrap/intrusions" --> EMQX["EMQX Cloud Broker"]
+    EMQX -- "MQTT Subscribe" --> NR["Node-RED Middleware\n(Visual PQC Ciphertext Debugger)"]
+    NR -- "HTTP POST\n/api/pqc/verify-decrypt" --> PQC["PQC Security Gateway (:3005)\n1. ML-DSA-44 Verify\n2. ML-KEM-512 Decaps\n3. AES-256-GCM Decrypt"]
+    PQC -- "HTTP POST\n/api/honeypot/log" --> LRV["Laravel 13 Backend API (:8000)\n(Timezone: Asia/Jakarta WIB)"]
+    LRV --> DB[("MySQL Database\n- intrusions (Permanen)\n- maintenance_logs (Permanen)\n- server_temperatures (Retensi 3 Jam)")]
+    LRV -- "Webhook Alert" --> TG["Telegram Bot API"]
+    NEXT["Next.js 16 SOC Dashboard (:3000)\n(Frosted Glass UI + Maintenance Modal + Password Logs)"] <--> LRV
+    NEXT -- "Unlock Servo / Maintenance ON-OFF" --> PQC
+    PQC -- "MQTT Publish\nTopic: honeytrap/command" --> EMQX
+    EMQX --> ESP
 ```
 
 ### 3.2 Spesifikasi Komponen Teknologi
 | Komponen | Teknologi Utama | Deskripsi Peran |
 | :--- | :--- | :--- |
-| **Edge IoT (Honeypot Node)** | ESP32-WROOM-32, C++ (Arduino IDE), `PubSubClient`, `ArduinoJson` | Membuka 4 soket layanan umpan, melakukan *banner grabbing* palsu, mengekstrak *payload*, mengelola alarm fisik Lapis 1 (LED Hijau, Kuning, Merah & *Passive Buzzer*), serta berkomunikasi dua arah via TLS MQTT. |
-| **Cloud Message Broker** | EMQX Cloud (MQTT over TLS Port 8883) | Broker pesan terkelola (*cloud*) yang menjamin pengiriman telemetri intrusi (`honeytrap/intrusions`) dan perintah kendali (`honeytrap/command`) secara aman dengan autentikasi *username/password*. |
-| **IoT Middleware & Debugger** | Node-RED (`127.0.0.1:1880`) | Menjembatani aliran protokol MQTT dari EMQX Cloud ke REST API Laravel, menyediakan injeksi simulasi pengujian, memantau paket *raw* secara visual, dan meneruskan sinyal reset alarm dari web ke ESP32. |
-| **Backend & REST API** | PHP 8.3+, Laravel 13 | Menyediakan endpoint `POST /api/honeypot/log` dan `GET /api/honeypot/history`, memvalidasi data intrusi, menyimpan ke MySQL, dan menembakkan peringatan ke Telegram Bot API. |
-| **Database** | MySQL | Menyimpan catatan historis serangan (`id`, `attacker_ip`, `target_port`, `raw_payload`, `created_at`, `updated_at`) untuk kebutuhan forensik digital. |
-| **Frontend SOC Dashboard** | Next.js 16.3 (Turbopack), React, Tailwind CSS | Antarmuka *Security Operations Center* (SOC) bertema **Frosted Glassmorphism** dengan *polling* 2 detik, indikator kedaruratan layar penuh (*Panic/Siren Mode*), analitik distribusi port, terminal serial *live*, dan arsip forensik. |
+| **Edge Cyber-Physical Node** | ESP32 DevKit V1, C++, `ESP32Servo.h`, `PubSubClient`, `ArduinoJson`, `mbedtls`, `PQClean` | Menjalankan 4 port honeypot, membaca sensor PIR (`D32`) & suhu DHT (`D4`), menggerakkan kunci Servo SG90 (`D13`), mengontrol LED & Passive Buzzer (`D25, D26, D27, D14`), serta mengenkripsi paket di dalam FreeRTOS Task (`56 KB` stack). |
+| **Post-Quantum Cryptography** | **ML-KEM-512** (FIPS 203), **ML-DSA-44** (FIPS 204), **AES-256-GCM** | Standar kriptografi NIST untuk pertukaran kunci sesi 256-bit, enkripsi terautentikasi (*AEAD*), dan tanda tangan digital anti-manipulasi antara ESP32 dan server. |
+| **PQC Security Gateway** | Node.js v24, `@noble/post-quantum`, `crypto`, `mqtt` (Port `3005`) | Memverifikasi tanda tangan `ML-DSA-44` (menolak paket palsu dengan HTTP `403`), melakukan dekapsulasi `ML-KEM-512`, mendekripsi `AES-256-GCM`, meneruskan log ke Laravel, serta mengirim perintah `MAINTENANCE_ON/OFF` & `SAFE` ke EMQX Cloud. |
+| **Cloud Broker & Debugger** | EMQX Cloud (TLS Port `8883`) & Node-RED (`127.0.0.1:1880`) | Meneruskan amplop PQC dari ESP32 serta menyediakan antarmuka *debugging* dan injeksi uji coba serangan palsu (*tampering test*). |
+| **Backend & Database** | PHP 8.3+, Laravel 13, MySQL | Mengelola API telemetri, pemangkasan otomatis (*auto-pruning*) data suhu > 3 jam, autentikasi Mode Perbaikan teknisi, proteksi password arsip log, dan pengiriman notifikasi Telegram. |
+| **Frontend SOC Dashboard** | Next.js 16.3, React, Tailwind CSS | Dashboard *Frosted Glassmorphism* dengan indikator kunci Servo (`LOCKED 90°` / `UNLOCKED 0°`), kartu suhu ruang server 3 jam terakhir, modal login Mode Perbaikan, dan tab arsip log berpassword. |
 
 ---
 
 ## 4. Core Features & Requirements
 
-### 4.1 Modul Firmware ESP32 (Decoy & Capture)
-* **Simulasi 4 Layanan Rentan (*Fake Banner Grabbing*):**
-  * **Port 21 (FTP):** Mengirimkan banner `220 (vsFTPd 3.0.3)` dan balasan `530 Login incorrect.`
-  * **Port 22 (SSH):** Mengirimkan banner `SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5` dan balasan `Permission denied (publickey,password).`
-  * **Port 23 (Telnet):** Mengirimkan prompt `Ubuntu 20.04.6 LTS - honeytrap-iot login:` dan balasan `Login incorrect`.
-  * **Port 80 (HTTP):** Mengirimkan header jebakan `HTTP/1.1 401 Unauthorized` dengan identitas server `Apache/2.4.41 (Ubuntu)` dan `WWW-Authenticate: Basic realm="Router Admin"`.
-* **Akuisisi Payload Cepat:** Membaca hingga 200 karakter pertama yang dikirim penyerang dalam jendela waktu 1.5 detik sebelum menutup koneksi secara bersih.
+### 4.1 Sensor Fisik, Aktuator Servo & Layanan Umpan (ESP32)
+1. **Layanan Umpan Jaringan (*Decoy Ports*):** Port `21` (FTP), Port `22` (SSH), Port `23` (Telnet dengan informasi suhu rak server & status kunci servo), dan Port `80` (HTTP Router/HVAC Admin).
+2. **Deteksi Penyusupan Fisik (`PIR HC-SR501` pada `GPIO 32`):** Menggunakan deteksi *Rising-Edge (`LOW -> HIGH`)* dengan *debounce* 180ms dan *re-arming* otomatis. Saat mendeteksi gerakan (dan tidak sedang dalam Mode Perbaikan), langsung mengunci Servo ke `90°`, membunyikan sirine `CRITICAL`, dan mengirim log `PHYSICAL-PIR` (`Port 999`).
+3. **Penguncian Mekanik Rak Server (`Servo SG90` pada `GPIO 13`):** Dikendalikan menggunakan pustaka `<ESP32Servo.h>` pada frekuensi PWM 50 Hz (`myServo.write(0)` untuk membuka kunci saat `SAFE`, dan `myServo.write(90)` untuk mengunci saat `CRITICAL`), dilengkapi `myServo.detach()` setelah berputar guna menjaga kestabilan arus USB.
+4. **Telemetri Suhu Ruang Server (`DHT11/DHT22` pada `GPIO 4`):** Mengirimkan suhu & kelembapan rutin (`Port 997`) serta peringatan *Thermal Anomaly* (`Port 998`, level `WARNING`) apabila suhu melebihi `35.0°C`.
 
-### 4.2 Sistem Peringatan 3 Lapis (3-Tier Alerting System)
-1. **Lapis 1 — Peringatan Fisik Lokal (ESP32 Actuator):**
-   * **Status `SAFE` (Aman):** **LED Hijau (`GPIO 25`)** menyala statis, buzzer nonaktif.
-   * **Status `WARNING` (Waspada — Port 21 FTP / Port 23 Telnet):** **LED Kuning (`GPIO 26`)** menyala disertai 1x bunyi *beep* peringatan (`1800 Hz`, 150ms) pada *Passive Buzzer*.
-   * **Status `CRITICAL` (Bahaya — Port 22 SSH / Port 80 HTTP):** **LED Merah (`GPIO 27`)** berkedip cepat setiap 250ms diiringi sirine darurat dua nada (`2800 Hz` dan `1800 Hz`) pada **Passive Buzzer (`GPIO 14`)**. Alarm fisik mengunci status tertinggi hingga di-reset melalui tombol fisik **`BOOT` (`GPIO 0`)** atau perintah jarak jauh dari dasbor web.
-2. **Lapis 2 — Peringatan Jarak Jauh Instan (Telegram Bot API):**
-   * Setiap kali log baru masuk ke endpoint Laravel, sistem langsung mengirim pesan peringatan darurat ke grup/kanal Telegram berisi IP Penyerang, Port Sasaran, dan *Raw Payload*.
-3. **Lapis 3 — Pemantauan Visual & Forensik Historis (Next.js Dashboard):**
-   * **Mode Visual Darurat (*Tense Emergency Glass Frame*):** Saat terdeteksi serangan baru bertingkat `WARNING` atau `CRITICAL`, latar belakang *mesh* dan bingkai layar dasbor otomatis berubah menjadi Oranye (`WARNING`) atau Merah Menyala (`CRITICAL`) yang berdenyut hingga administrator menekan tombol **Acknowledge & Set Safe**.
-   * **Analitik & Telemetri Langsung:** Menampilkan total serangan, jumlah insiden kritis, grafik proporsi 4 port teratas, inspektur insiden terakhir dalam zona waktu **WIB**, tabel log paket langsung, dan *stream* terminal serial (`sensor-feed.tty1`).
-   * **Arsip Forensik Digital:** Menyediakan pencarian berdasarkan alamat IP/potongan eksploitasi, penyaringan port spesifik, dan penyaringan tanggal kejadian.
+### 4.2 Keamanan Transfer Post-Quantum (ML-KEM + ML-DSA + AES-256-GCM)
+* Setiap paket keluar dibungkus dalam amplop JSON Base64 (`kem_ct`, `iv`, `aes_ct`, `tag`, `sig`) berukuran ~4.6 KB melalui buffer MQTT `8192` byte.
+* PQC Gateway wajib menolak setiap paket yang gagal melewati verifikasi tanda tangan `ML-DSA-44` atau *authentication tag* `AES-256-GCM` dengan status `403 Forbidden`.
 
----
-
-## 5. Security & Mitigation (Resource Protection)
-* **Konfigurasi Ulang Watchdog Timer (`esp_task_wdt_reconfigure`):** Mengawasi *main loop* pada ESP32 dengan batas waktu 15 detik dan melakukan *reset* berkala selama pembacaan *socket* maupun koneksi Wi-Fi.
-* **Pembatasan Timeout TLS (`setTimeout(5)`):** Mencegah kebekuan proses (*blocking*) saat melakukan *handshake* TLS ke broker EMQX Cloud pada kondisi jaringan tidak stabil.
-* **Limitasi Koneksi Soket (`MAX_CLIENTS = 3`):** Setiap objek `WiFiServer` dibatasi maksimal melayani 3 koneksi secara bersamaan guna menjaga ketersediaan *heap memory* ESP32 dari serangan *flooding*.
+### 4.3 Mode Perbaikan (Maintenance Mode), Retensi Suhu 3 Jam & Proteksi Log
+* **Mode Perbaikan Ruang Server:** Teknisi wajib memasukkan Username, Password, dan catatan perbaikan pada Dashboard. Saat aktif, perintah `MAINTENANCE_ON` dikirim ke ESP32 untuk menonaktifkan pemicu sensor PIR, dan aksi tersebut dicatat pada tabel `maintenance_logs`.
+* **Retensi Suhu 3 Jam Terakhir:** Tabel `server_temperatures` secara otomatis menghapus rekaman yang berusia lebih dari 3 jam (`created_at < now()->subHours(3)`).
+* **Proteksi Password Arsip Log:** Tab *Forensic Logs* di Dashboard dikunci dengan autentikasi password sebelum menampilkan tabel *Maintenance Audit Logs* dan *Forensic Intrusion Archive*.

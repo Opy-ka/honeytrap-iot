@@ -21,6 +21,7 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ESP32Servo.h>
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 #include <esp_random.h>
@@ -78,8 +79,13 @@ int currentServoAngle = -1;
 unsigned long lastBlinkTime = 0;
 bool redBlinkState = false;
 
-// State Sensor PIR & DHT
+// State Sensor PIR, DHT & Maintenance Mode
+bool maintenanceMode = false;
+unsigned long lastTempReportTime = 0;
 unsigned long lastPirTriggerTime = 0;
+unsigned long lastResetTime = 0;
+unsigned long pirHighStartTime = 0;
+bool pirArmed = false; // Baru aktif (armed) setelah sensor PIR stabil di kondisi LOW
 unsigned long lastDhtReadTime = 0;
 unsigned long lastThermalAlertTime = 0;
 float rackTempC = 26.5;
@@ -87,26 +93,33 @@ float rackHumidity = 54.0;
 bool dhtHardwareDetected = false;
 
 // ============================================================================
-// DRIVER SERVO BUILT-IN (TANPA LIBRARY TAMBAHAN & BEBAS KONFLIK TIMER BUZZER)
-// Sudut 0° = UNLOCKED (Pintu Terbuka), Sudut 90° = LOCKED (Auto-Lockdown)
+// DRIVER SERVO SESUAI MODUL PRAKTIKUM BAB 2 (PUSTAKA ESP32Servo.h)
+// Menggunakan myServo.attach() dan myServo.write() pada sudut 0° dan 90°
 // ============================================================================
+Servo myServo;
+
+void initServoPwm() {
+  // Alokasikan Timer 2 untuk ESP32Servo agar tidak bentrok dengan Timer 0 milik tone(PIN_BUZZER)
+  ESP32PWM::allocateTimer(2);
+  myServo.setPeriodHertz(50); // Frekuensi standar SG90 = 50 Hz (Subbab 2.3.3 Modul)
+}
+
 void moveServoAngle(int angle) {
   if (angle == currentServoAngle) return;
   currentServoAngle = angle;
 
-  // Konversi sudut (0-180) ke lebar pulsa mikrodetik (544us - 2400us)
-  int pulseWidthUs = map(constrain(angle, 0, 180), 0, 180, 544, 2400);
-  Serial.printf("[SERVO] Menggerakkan Kunci Mekanik Rak Server ke %d derajat (%s)\n",
+  Serial.printf("[SERVO] myServo.write(%d) -> (%s)\n",
                 angle, angle >= 90 ? "LOCKED / TERKUNCI" : "UNLOCKED / TERBUKA");
 
-  // Kirim 22 pulsa PWM 50Hz (20ms periode) agar tuas servo mencapai posisi target dengan kuat
-  for (int i = 0; i < 22; i++) {
-    digitalWrite(PIN_SERVO, HIGH);
-    delayMicroseconds(pulseWidthUs);
-    digitalWrite(PIN_SERVO, LOW);
-    delay(20 - (pulseWidthUs / 1000));
+  // Nyalakan servo, putar ke sudut target (0° atau 90°), tunggu 450ms sampai selesai berputar,
+  // lalu detach() agar servo tidak menyedot arus USB terus-menerus saat Wi-Fi mengirim paket PQC
+  myServo.attach(PIN_SERVO);
+  myServo.write(angle);
+  for (int i = 0; i < 9; i++) {
+    delay(50);
     esp_task_wdt_reset();
   }
+  myServo.detach();
 }
 
 // ============================================================================
@@ -188,7 +201,10 @@ void setAlarmState(int state) {
     noTone(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, LOW);
     moveServoAngle(0); // Buka kunci rak server
-    Serial.println("[ALARM] Status AMAN (SAFE) -> Kunci Servo Terbuka (0 deg).");
+    lastResetTime = millis();
+    pirArmed = false; // Tunggu sampai PIR turun ke LOW dulu baru siap mendeteksi gerakan baru
+    pirHighStartTime = 0;
+    Serial.println("[ALARM] Status AMAN (SAFE) -> Kunci Servo Terbuka (0 deg). Menunggu PIR kembali LOW...");
   } 
   else if (currentAlarmState == 1) {
     // WARNING: LED Kuning menyala + 1x Beep pendek
@@ -232,7 +248,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.printf("[MQTT IN] Topik: %s | Pesan: %s\n", topic, message.c_str());
 
-  if (message.indexOf("SAFE") >= 0 || message.indexOf("RESET") >= 0 || message.indexOf("UNLOCK") >= 0) {
+  if (message.indexOf("MAINTENANCE_ON") >= 0) {
+    maintenanceMode = true;
+    setAlarmState(0);
+    Serial.println("[MAINTENANCE] Mode Perbaikan AKTIF -> Sensor Gerak PIR dinonaktifkan sementara!");
+  } else if (message.indexOf("MAINTENANCE_OFF") >= 0) {
+    maintenanceMode = false;
+    setAlarmState(0);
+    Serial.println("[MAINTENANCE] Mode Perbaikan SELESAI -> Sensor Gerak PIR aktif kembali!");
+  } else if (message.indexOf("SAFE") >= 0 || message.indexOf("RESET") >= 0 || message.indexOf("UNLOCK") >= 0) {
     setAlarmState(0);
   }
 }
@@ -361,8 +385,10 @@ void publishIntrusion(String attackerIp, int targetPort, String rawPayload) {
   }
 
   // Keputusan Otonom di Edge (Lapis 1: LED + Buzzer + Servo Lockdown)
-  // Port 22 (SSH), Port 80 (HTTP), atau Port 999 (Sensor Gerak Fisik PIR) -> CRITICAL + SERVO LOCK
-  if (targetPort == 22 || targetPort == 80 || targetPort == 999) {
+  // Port 997 adalah pengiriman telemetri suhu rutin (tidak menyalakan alarm)
+  if (targetPort == 997) {
+    // Tetap pada status alarm saat ini
+  } else if (targetPort == 22 || targetPort == 80 || targetPort == 999) {
     setAlarmState(2); // CRITICAL + AUTO-LOCKDOWN SERVO 90° (Tetap bekerja meski offline!)
   } else {
     setAlarmState(1); // WARNING (Port 21 / 23 / 998 Overheat DHT)
@@ -426,16 +452,47 @@ void checkPhysicalSensors() {
                           "C (RH: " + String(rackHumidity, 0) + "%)";
       publishIntrusion("SENSOR-DHT", 998, thermalMsg);
     }
+
+    // Kirim telemetri suhu rutin ke Dashboard setiap 30 detik (Port 997 - Retensi 3 Jam)
+    if (mqttClient.connected() && (millis() - lastTempReportTime > 30000)) {
+      lastTempReportTime = millis();
+      String tempPayload = "TEMP:" + String(rackTempC, 1) + "|HUM:" + String(rackHumidity, 0);
+      publishIntrusion("SENSOR-DHT", 997, tempPayload);
+    }
   }
 
-  // 2. Cek Sensor Gerak PIR (GPIO 32) dengan cooldown 8 detik agar tidak spam
-  // (Abaikan 5 detik pertama saat boot untuk kalibrasi awal sensor PIR)
-  if (millis() > 5000 && digitalRead(PIN_PIR) == HIGH && (millis() - lastPirTriggerTime > 8000)) {
-    lastPirTriggerTime = millis();
-    Serial.println("\n[PHYSICAL BREACH] Sensor Gerak PIR mendeteksi penyusup di dekat Rak Server!");
-    String pirMsg = "PHYSICAL BREACH: Motion detected at Server Rack -> Servo LOCKED [90 deg] | Temp: " +
-                    String(rackTempC, 1) + "C";
-    publishIntrusion("PHYSICAL-PIR", 999, pirMsg);
+  // 2. Jika Ruang Server sedang dalam MODE PERBAIKAN (Maintenance Mode), jangan picu Sensor Gerak PIR!
+  if (maintenanceMode) {
+    return;
+  }
+
+  // 3. Cek Sensor Gerak PIR (GPIO 32) dengan sistem Rising-Edge (LOW -> HIGH)
+  // Abaikan 10 detik pertama saat boot (kalibrasi PIR) dan 5 detik setelah tombol Reset ditekan
+  if (millis() < 10000 || (millis() - lastResetTime < 5000)) {
+    return;
+  }
+
+  int pirVal = digitalRead(PIN_PIR);
+  if (pirVal == LOW) {
+    // Sensor PIR sudah kembali tenang (LOW) -> Aktifkan kembali (Arm) untuk mendeteksi gerakan baru
+    if (!pirArmed) {
+      pirArmed = true;
+      Serial.println("[PIR] Sensor Gerak siap memantau (ARMED - State LOW).");
+    }
+    pirHighStartTime = 0;
+  } else if (pirVal == HIGH && pirArmed && currentAlarmState < 2) {
+    // Pastikan sinyal HIGH bertahan minimal 180ms (filter gangguan sinyal Wi-Fi ESP32)
+    if (pirHighStartTime == 0) {
+      pirHighStartTime = millis();
+    } else if (millis() - pirHighStartTime >= 180) {
+      pirArmed = false; // Kunci agar hanya memicu 1x sampai PIR kembali LOW dan di-reset
+      pirHighStartTime = 0;
+      lastPirTriggerTime = millis();
+      Serial.println("\n[PHYSICAL BREACH] Sensor Gerak PIR mendeteksi penyusup baru di dekat Rak Server!");
+      String pirMsg = "PHYSICAL BREACH: Motion detected at Server Rack -> Servo LOCKED [90 deg] | Temp: " +
+                      String(rackTempC, 1) + "C";
+      publishIntrusion("PHYSICAL-PIR", 999, pirMsg);
+    }
   }
 }
 
@@ -491,11 +548,6 @@ void setupWiFi() {
     delay(500);
     Serial.print(".");
     esp_task_wdt_reset();
-    // Tetap pantau sensor gerak PIR meski Wi-Fi sedang putus/mencari sinyal (Edge Offline Mode)
-    if (millis() > 5000 && digitalRead(PIN_PIR) == HIGH && currentAlarmState < 2) {
-      Serial.println("\n[OFFLINE GUARD] Penyusup fisik terdeteksi saat offline! Mengunci Servo!");
-      setAlarmState(2);
-    }
   }
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[WIFI] Terhubung!");
@@ -531,9 +583,9 @@ void setup() {
   pinMode(PIN_LED_YELLOW, OUTPUT);
   pinMode(PIN_LED_RED, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
-  pinMode(PIN_SERVO, OUTPUT);
-  pinMode(PIN_PIR, INPUT);
+  pinMode(PIN_PIR, INPUT_PULLDOWN);
   pinMode(PIN_BTN_RESET, INPUT_PULLUP);
+  initServoPwm();
 
   // Inisialisasi Watchdog Timer (Sesuai PRD Bab 5)
   #if ESP_ARDUINO_VERSION_MAJOR >= 3
@@ -548,7 +600,12 @@ void setup() {
   #endif
   esp_task_wdt_add(NULL);
 
-  setAlarmState(0); // Mulai dalam kondisi SAFE (LED Hijau & Servo 0° UNLOCKED)
+  // Tes Gerak Servo Otomatis saat baru nyala (90 deg -> 0 deg) sesuai Listing 2 Modul Bab 2
+  Serial.println("[SERVO TEST] Uji gerak awal: myServo.write(90) -> myServo.write(0)...");
+  moveServoAngle(90);
+  delay(1000);
+  esp_task_wdt_reset();
+  setAlarmState(0); // Mulai dalam kondisi SAFE (LED Hijau & myServo.write(0) UNLOCKED)
   updateRackTemperature();
 
   setupWiFi();

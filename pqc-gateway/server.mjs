@@ -1,11 +1,33 @@
 import http from 'http';
 import crypto from 'crypto';
 import fs from 'fs';
+import mqtt from 'mqtt';
 import { ml_kem512 } from '@noble/post-quantum/ml-kem.js';
 import { ml_dsa44 } from '@noble/post-quantum/ml-dsa.js';
 
 const PORT = 3005;
 const LARAVEL_URL = 'http://127.0.0.1:8000/api/honeypot/log';
+
+// Koneksi Langsung ke EMQX Cloud untuk mengirim perintah balik (MAINTENANCE_ON, MAINTENANCE_OFF, SAFE) ke ESP32
+const EMQX_URL = 'mqtts://c10481f8.ala.asia-southeast1.emqxsl.com:8883';
+const EMQX_USER = 'gopi';
+const EMQX_PASS = '1234';
+const TOPIC_COMMAND = 'honeytrap/command';
+
+const mqttClient = mqtt.connect(EMQX_URL, {
+  username: EMQX_USER,
+  password: EMQX_PASS,
+  rejectUnauthorized: false,
+  reconnectPeriod: 3000,
+});
+
+mqttClient.on('connect', () => {
+  console.log('[EMQX CLOUD] Terhubung ke broker untuk kanal perintah:', TOPIC_COMMAND);
+});
+
+mqttClient.on('error', (err) => {
+  console.error('[EMQX CLOUD ERROR]', err.message);
+});
 
 if (!fs.existsSync('keys.json')) {
   console.error('ERROR: keys.json belum ada! Jalankan: node keygen.mjs');
@@ -45,6 +67,7 @@ function verifyAndDecrypt(packet) {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Content-Type', 'application/json');
 
@@ -56,7 +79,41 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200);
-    res.end(JSON.stringify({ status: 'ok', pqc: 'ML-KEM-512 + ML-DSA-44 + AES-256-GCM' }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      pqc: 'ML-KEM-512 + ML-DSA-44 + AES-256-GCM',
+      emqx_connected: mqttClient.connected,
+    }));
+    return;
+  }
+
+  // Endpoint Kirim Perintah Langsung ke ESP32 via EMQX Cloud (MAINTENANCE_ON / MAINTENANCE_OFF / SAFE)
+  if (req.method === 'POST' && req.url === '/api/pqc/command') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let command = 'SAFE';
+      try {
+        const parsed = JSON.parse(body);
+        command = parsed.command || 'SAFE';
+      } catch {
+        command = body.trim() || 'SAFE';
+      }
+
+      // Gunakan retain: true khusus untuk MAINTENANCE_ON / MAINTENANCE_OFF agar ESP32 tetap tahu statusnya
+      const useRetain = command.includes('MAINTENANCE');
+      mqttClient.publish(TOPIC_COMMAND, command, { qos: 1, retain: useRetain }, (err) => {
+        if (err) {
+          console.error('[COMMAND FAIL]', err.message);
+          res.writeHead(500);
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        } else {
+          console.log(`[COMMAND SENT -> ESP32] Topik: ${TOPIC_COMMAND} | Perintah: ${command}`);
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, command, topic: TOPIC_COMMAND }));
+        }
+      });
+    });
     return;
   }
 
@@ -67,7 +124,6 @@ const server = http.createServer(async (req, res) => {
       try {
         const packet = JSON.parse(body);
 
-        // Jika paket masih plaintext (misal dari tombol test Node-RED lama), tolak atau beri info
         if (!packet.kem_ct || !packet.sig || !packet.aes_ct) {
           res.writeHead(400);
           res.end(JSON.stringify({ success: false, error: 'Paket tidak memiliki envelope PQC (kem_ct, iv, aes_ct, tag, sig).' }));
@@ -109,5 +165,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`  HoneyTrap PQC Security Gateway aktif di port ${PORT}`);
   console.log(`  Algoritma : ML-KEM-512 + ML-DSA-44 + AES-256-GCM`);
   console.log(`  Endpoint  : POST http://127.0.0.1:${PORT}/api/pqc/verify-decrypt`);
+  console.log(`  Command   : POST http://127.0.0.1:${PORT}/api/pqc/command`);
   console.log(`========================================================`);
 });
