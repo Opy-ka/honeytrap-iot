@@ -85,7 +85,8 @@ unsigned long lastTempReportTime = 0;
 unsigned long lastPirTriggerTime = 0;
 unsigned long lastResetTime = 0;
 unsigned long pirHighStartTime = 0;
-bool pirArmed = false; // Baru aktif (armed) setelah sensor PIR stabil di kondisi LOW
+unsigned long lastPirWaitLogTime = 0;
+bool pirArmed = false; // Aktif (armed) saat sensor PIR berada di kondisi LOW
 unsigned long lastDhtReadTime = 0;
 unsigned long lastThermalAlertTime = 0;
 float rackTempC = 26.5;
@@ -202,9 +203,9 @@ void setAlarmState(int state) {
     digitalWrite(PIN_BUZZER, LOW);
     moveServoAngle(0); // Buka kunci rak server
     lastResetTime = millis();
-    pirArmed = false; // Tunggu sampai PIR turun ke LOW dulu baru siap mendeteksi gerakan baru
+    pirArmed = false;
     pirHighStartTime = 0;
-    Serial.println("[ALARM] Status AMAN (SAFE) -> Kunci Servo Terbuka (0 deg). Menunggu PIR kembali LOW...");
+    Serial.println("[ALARM] Status AMAN (SAFE) -> Kunci Servo Terbuka (0 deg). Menunggu PIR stabil LOW...");
   } 
   else if (currentAlarmState == 1) {
     // WARNING: LED Kuning menyala + 1x Beep pendek
@@ -469,26 +470,31 @@ void checkPhysicalSensors() {
   // 3. Cek Sensor Gerak PIR (GPIO 32) dengan sistem Rising-Edge (LOW -> HIGH)
   // Abaikan 10 detik pertama saat boot (kalibrasi PIR) dan 5 detik setelah tombol Reset ditekan
   if (millis() < 10000 || (millis() - lastResetTime < 5000)) {
+    pirHighStartTime = 0;
     return;
   }
 
   int pirVal = digitalRead(PIN_PIR);
   if (pirVal == LOW) {
-    // Sensor PIR sudah kembali tenang (LOW) -> Aktifkan kembali (Arm) untuk mendeteksi gerakan baru
     if (!pirArmed) {
       pirArmed = true;
       Serial.println("[PIR] Sensor Gerak siap memantau (ARMED - State LOW).");
     }
     pirHighStartTime = 0;
+  } else if (pirVal == HIGH && !pirArmed && currentAlarmState < 2) {
+    if (millis() - lastPirWaitLogTime > 5000) {
+      lastPirWaitLogTime = millis();
+      Serial.println("[PIR] Menunggu GPIO 32 turun ke LOW (cek VCC 5V, putar potensio Tx ke kiri, atau tutupi kubah PIR 3 detik)...");
+    }
   } else if (pirVal == HIGH && pirArmed && currentAlarmState < 2) {
     // Pastikan sinyal HIGH bertahan minimal 180ms (filter gangguan sinyal Wi-Fi ESP32)
     if (pirHighStartTime == 0) {
       pirHighStartTime = millis();
     } else if (millis() - pirHighStartTime >= 180) {
-      pirArmed = false; // Kunci agar hanya memicu 1x sampai PIR kembali LOW dan di-reset
+      pirArmed = false;
       pirHighStartTime = 0;
       lastPirTriggerTime = millis();
-      Serial.println("\n[PHYSICAL BREACH] Sensor Gerak PIR mendeteksi penyusup baru di dekat Rak Server!");
+      Serial.println("\n[PHYSICAL BREACH] Sensor Gerak PIR mendeteksi penyusup di dekat Rak Server!");
       String pirMsg = "PHYSICAL BREACH: Motion detected at Server Rack -> Servo LOCKED [90 deg] | Temp: " +
                       String(rackTempC, 1) + "C";
       publishIntrusion("PHYSICAL-PIR", 999, pirMsg);
